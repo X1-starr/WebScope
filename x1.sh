@@ -145,25 +145,40 @@ while true; do
                         echo
                         echo "----- HTTP / HTTPS -----"
 
-                        if command -v curl >/dev/null 2>&1; then
+              if command -v curl >/dev/null 2>&1; then
 
-                            HTTP_INFO=$(curl -k -L -s -o /dev/null \
-                                -w "%{http_code}|%{url_effective}|%{http_version}|%{time_total}" \
-                                --max-time 10 "$TARGET")
+    HTTP_INFO=$(curl -k -L -s -o /dev/null \
+        -w "%{http_code}|%{url_effective}|%{http_version}|%{time_total}|%{errormsg}" \
+        --max-time 10 "$TARGET")
 
-                            HTTP_CODE=$(echo "$HTTP_INFO" | cut -d'|' -f1)
-                            FINAL_URL=$(echo "$HTTP_INFO" | cut -d'|' -f2)
-                            HTTP_VERSION=$(echo "$HTTP_INFO" | cut -d'|' -f3)
-                            RESPONSE_TIME=$(echo "$HTTP_INFO" | cut -d'|' -f4)
+    HTTP_CODE=$(echo "$HTTP_INFO" | cut -d'|' -f1)
+    FINAL_URL=$(echo "$HTTP_INFO" | cut -d'|' -f2)
+    HTTP_VERSION=$(echo "$HTTP_INFO" | cut -d'|' -f3)
+    RESPONSE_TIME=$(echo "$HTTP_INFO" | cut -d'|' -f4)
+    CURL_ERROR=$(echo "$HTTP_INFO" | cut -d'|' -f5-)
 
-                            echo "Status    : $HTTP_CODE"
-                            echo "Final URL : $FINAL_URL"
-                            echo "HTTP      : $HTTP_VERSION"
-                            echo "Response  : ${RESPONSE_TIME}s"
+    echo "Status    : $HTTP_CODE"
+    echo "Final URL : $FINAL_URL"
+    echo "HTTP      : $HTTP_VERSION"
+    echo "Response  : ${RESPONSE_TIME}s"
 
-                        else
-                            echo "[!] curl is not installed."
-                        fi
+    if [ "$HTTP_CODE" = "000" ]; then
+        HTTP_FAILED=true
+
+        echo
+        echo "[!] HTTP request failed."
+
+        if [ -n "$CURL_ERROR" ]; then
+            echo "[!] Error   : $CURL_ERROR"
+        fi
+    else
+        HTTP_FAILED=false
+    fi
+
+else
+    echo "[!] curl is not installed."
+    HTTP_FAILED=true
+fi
 
                         echo
                         echo "----- TLS -----"
@@ -201,31 +216,40 @@ while true; do
                         echo
                         echo "----- Security Headers -----"
 
-                        if command -v curl >/dev/null 2>&1; then
+                        if [ "$HTTP_FAILED" = true ]; then
 
-                            HEADERS=$(curl -k -s -I -L \
-                                --max-time 10 "$TARGET")
+    echo "[!] Cannot check security headers."
+    echo "[!] No valid HTTP response was received."
 
-                            for HEADER in \
-                                "strict-transport-security" \
-                                "content-security-policy" \
-                                "x-frame-options" \
-                                "x-content-type-options" \
-                                "referrer-policy" \
-                                "permissions-policy"
-                            do
+elif command -v curl >/dev/null 2>&1; then
 
-                                RESULT=$(echo "$HEADERS" | grep -i "^$HEADER:" | tail -n 1)
+    HEADERS=$(curl -k -s -I -L \
+        --max-time 10 "$TARGET")
 
-                                if [ -n "$RESULT" ]; then
-                                    echo "[+] $RESULT"
-                                else
-                                    echo "[-] $HEADER : Not found"
-                                fi
+    for HEADER in \
+        "strict-transport-security" \
+        "content-security-policy" \
+        "x-frame-options" \
+        "x-content-type-options" \
+        "referrer-policy" \
+        "permissions-policy"
+    do
 
-                            done
+        RESULT=$(echo "$HEADERS" | grep -i "^$HEADER:" | tail -n 1)
 
-                        fi
+        if [ -n "$RESULT" ]; then
+            echo "[+] $RESULT"
+        else
+            echo "[-] $HEADER : Not found"
+        fi
+
+    done
+
+else
+
+    echo "[!] curl is not installed."
+
+fi
 
                         echo
                         echo "======================================"
@@ -296,39 +320,60 @@ while true; do
                         echo "╔══════════════════════════════════════╗"
                         echo "║            X1 HTTP HEADERS          ║"
                         echo "╚══════════════════════════════════════╝"
-                        echo
 
-                        echo -n "Enter URL or IP: "
-                        read TARGET
+ echo -n "Enter URL or IP: "
+read TARGET
 
-                        if [ -z "$TARGET" ]; then
-                            echo "[!] No target entered."
-                            sleep 2
-                            continue
-                        fi
+if [ -z "$TARGET" ]; then
+    echo "[!] No target entered."
+    sleep 2
+    continue
+fi
 
-                        if [[ "$TARGET" != http://* && "$TARGET" != https://* ]]; then
-                            TARGET="https://$TARGET"
-                        fi
+if [[ "$TARGET" != http://* && "$TARGET" != https://* ]]; then
+    TARGET="https://$TARGET"
+fi
 
-                        echo
-                        echo "[+] Requesting headers..."
-                        echo
+echo
+echo "[+] Target : $TARGET"
+echo
 
-                        if command -v curl >/dev/null 2>&1; then
+if command -v curl >/dev/null 2>&1; then
 
-                            curl -k -I -L --max-time 10 "$TARGET"
+    HTTP_INFO=$(curl -k -L -s -o /dev/null \
+        -w "%{http_code}|%{url_effective}|%{http_version}|%{time_total}|%{errormsg}" \
+        --max-time 10 "$TARGET")
 
-                        else
+    HTTP_CODE=$(echo "$HTTP_INFO" | cut -d'|' -f1)
+    FINAL_URL=$(echo "$HTTP_INFO" | cut -d'|' -f2)
+    HTTP_VERSION=$(echo "$HTTP_INFO" | cut -d'|' -f3)
+    RESPONSE_TIME=$(echo "$HTTP_INFO" | cut -d'|' -f4)
+    CURL_ERROR=$(echo "$HTTP_INFO" | cut -d'|' -f5)
 
-                            echo "[!] curl is not installed."
+    echo "Status    : $HTTP_CODE"
+    echo "Final URL : $FINAL_URL"
+    echo "HTTP      : $HTTP_VERSION"
+    echo "Response  : ${RESPONSE_TIME}s"
 
-                        fi
+    if [ "$HTTP_CODE" = "000" ]; then
+        echo
+        echo "[!] HTTP request failed."
+        if [ -n "$CURL_ERROR" ]; then
+            echo "[!] Error   : $CURL_ERROR"
+        fi
+        HTTP_FAILED=true
+    else
+        HTTP_FAILED=false
+    fi
 
-                        echo
-                        read -p "Press Enter to continue..."
-
-                        ;;
+else
+    echo "[!] curl is not installed."
+    HTTP_FAILED=true
+fi
+echo
+echo "======================================"
+read -p "Press Enter to continue..."
+                                             ;;
 
 
                     # ======================================
@@ -397,63 +442,70 @@ while true; do
                         echo "╚══════════════════════════════════════╝"
                         echo
 
-                        echo -n "Enter URL: "
-                        read TARGET
+echo
+read -p "Enter URL or IP: " TARGET
 
-                        if [ -z "$TARGET" ]; then
-                            echo "[!] No target entered."
-                            sleep 2
-                            continue
-                        fi
-
-                        if [[ "$TARGET" != http://* && "$TARGET" != https://* ]]; then
-                            TARGET="https://$TARGET"
-                        fi
-
-                        echo
-                        echo "[+] Checking security headers..."
-                        echo
-
-                        if command -v curl >/dev/null 2>&1; then
-
-                            HEADERS=$(curl -k -s -I -L \
-                                --max-time 10 "$TARGET")
-
-                            echo "HSTS:"
-                            echo "$HEADERS" | grep -i "^strict-transport-security:" || echo "Not found"
-
-                            echo
-                            echo "Content-Security-Policy:"
-                            echo "$HEADERS" | grep -i "^content-security-policy:" || echo "Not found"
-
-                            echo
-                            echo "X-Frame-Options:"
-                            echo "$HEADERS" | grep -i "^x-frame-options:" || echo "Not found"
-
-                            echo
-                            echo "X-Content-Type-Options:"
-                            echo "$HEADERS" | grep -i "^x-content-type-options:" || echo "Not found"
-
-                            echo
-                            echo "Referrer-Policy:"
-                            echo "$HEADERS" | grep -i "^referrer-policy:" || echo "Not found"
-
-                            echo
-                            echo "Permissions-Policy:"
-                            echo "$HEADERS" | grep -i "^permissions-policy:" || echo "Not found"
-
-                        else
-
-                            echo "[!] curl is not installed."
-
-                        fi
-
-                        echo
-                        read -p "Press Enter to continue..."
-
-                        ;;
+if [ -z "$TARGET" ]; then
+    echo "[!] No target entered."
+    read -p "Press Enter to continue..."
 
 
+elif ! command -v curl >/dev/null 2>&1; then
+    echo "[!] curl is not installed."
+    read -p "Press Enter to continue..."
+
+
+else
+
+    if [[ "$TARGET" != http://* && "$TARGET" != https://* ]]; then
+        TARGET="https://$TARGET"
+    fi
+
+    echo
+    echo "[+] Target : $TARGET"
+    echo
+
+    HTTP_CODE=$(curl -k -L -s -o /dev/null \
+        -w "%{http_code}" \
+        --max-time 10 "$TARGET")
+
+    if [ "$HTTP_CODE" = "000" ]; then
+
+        echo "[!] HTTP request failed."
+        echo "[!] Cannot check security headers."
+
+    else
+
+        HEADERS=$(curl -k -s -I -L \
+            --max-time 10 "$TARGET")
+
+        for HEADER in \
+            "strict-transport-security" \
+            "content-security-policy" \
+            "x-frame-options" \
+            "x-content-type-options" \
+            "referrer-policy" \
+            "permissions-policy"
+        do
+
+            RESULT=$(echo "$HEADERS" | grep -i "^$HEADER:" | tail -n 1)
+
+            if [ -n "$RESULT" ]; then
+                echo "[+] $RESULT"
+            else
+                echo "[-] $HEADER : Not found"
+            fi
+
+        done
+
+    fi
+
+fi
+
+echo
+read -p "Press Enter to continue..."
+
+       ;;
                     # ======================================
                     # BACK
                     # ======================================
