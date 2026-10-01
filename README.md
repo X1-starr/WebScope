@@ -26,8 +26,11 @@ Requirements
 Installation
 
 git clone https://github.com/X1-starr/WebScope.git
+
 cd WebScope
+
 chmod +x x1.sh
+
 
 Usage
 
